@@ -25,7 +25,6 @@
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        // ייבוא מודרני ונקי של הספריות בעזרת ה-importmap שהגדרנו למעלה
         import React, { useState, useMemo, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
         import * as Lucide from 'lucide-react';
@@ -40,7 +39,7 @@
             ShieldCheck, Lock, CreditCard, ChevronDown, CornerDownLeft 
         } = Lucide;
 
-        // --- נתונים התחלתיים (ישמשו רק אם המסד ריק) ---
+        // --- נתונים התחלתיים ---
         const INITIAL_BUDGETS = {
             "הדרכות פנים ארגוניות": 500000,
             "כנס סיכום שנה": 350000,
@@ -53,10 +52,129 @@
             "חברות עובדים באגודות מקצועיות": 55000
         };
 
+        // הנתונים יובאו ושוקללו מקובץ ה-CSV של המשתמש:
         const INITIAL_RECEIPTS = [
-            { id: 1, amount: 150000, vendor: "מלון דן", category: "כנס סיכום שנה", quarter: "Q4", month: "דצמבר", status: "משוריין", parentId: null },
-            { id: 2, amount: 160000, vendor: "מלון דן (חריגת תשלום)", category: "כנס סיכום שנה", quarter: "Q4", month: "דצמבר", status: "שולם", parentId: 1 },
-            { id: 3, amount: 12000, vendor: "אדובי ישראל", category: "כלי הדרכה דיגיטליים", quarter: "Q1", month: "פברואר", status: "שולם", parentId: null },
+            {"id": 1, "amount": 6279.0, "vendor": "CBTC Masterclass", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 2, "amount": 3300.0, "vendor": "אונו יזמות והדרכות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 3, "amount": 3300.0, "vendor": "אונו יזמות והדרכות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 4, "amount": 6400.0, "vendor": "אונו יזמות והדרכות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 5, "amount": 6400.0, "vendor": "אונו יזמות והדרכות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 6, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 7, "amount": 619.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 8, "amount": 981.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 9, "amount": 578.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 10, "amount": 1223.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 11, "amount": 10782.0, "vendor": "איגוד המהנדסים לבניה ותשתיות בישראל", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 12, "amount": 638.0, "vendor": "איקן - מס בעמ", "category": "עיצוב גרפי", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 13, "amount": 1020.0, "vendor": "איקן - מס בעמ", "category": "עיצוב גרפי", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 14, "amount": 1318.0, "vendor": "איקן - מס בעמ", "category": "עיצוב גרפי", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null},
+            {"id": 15, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 16, "amount": 14500.0, "vendor": "אלעד דרמון", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 17, "amount": 444.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 18, "amount": 578.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 19, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 20, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 21, "amount": 10133.0, "vendor": "בו בזמן בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 22, "amount": 978.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 23, "amount": 590.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 24, "amount": 522.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 25, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null},
+            {"id": 26, "amount": 1127.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 27, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 28, "amount": 30500.0, "vendor": "ג'אז ורשינין", "category": "יועצי ניהול ופיתוח הדרכה", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 29, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 30, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 31, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 32, "amount": 7000.0, "vendor": "ד\"ר יניב לויתן בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 33, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 34, "amount": 3200.0, "vendor": "דברה לונדון בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 35, "amount": 1200.0, "vendor": "דברה לונדון בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 36, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 37, "amount": 7600.0, "vendor": "דנה פרי", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 38, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 39, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 40, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 41, "amount": 2500.0, "vendor": "הנדסה בגובה - מרכז בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 42, "amount": 2760.0, "vendor": "העמותה לניהול וחקר משאבי אנוש בישרא", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 43, "amount": 920.0, "vendor": "העמותה לניהול וחקר משאבי אנוש בישרא", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 44, "amount": 578.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 45, "amount": 127.0, "vendor": "ווינדמן הפקות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 46, "amount": 300.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 47, "amount": 350.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 48, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 49, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 50, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 51, "amount": 978.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 52, "amount": 981.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 53, "amount": 1112.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 54, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 55, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 56, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 57, "amount": 6700.0, "vendor": "ליד אפ בע\"מ", "category": "תפעול לוגיסטי", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 58, "amount": 7500.0, "vendor": "לירז מרגלית בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 59, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 60, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 61, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 62, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 63, "amount": 26860.0, "vendor": "מילוא הזנפראץ גלית גרפיקס מצגות אפק", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 64, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 65, "amount": 1223.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 66, "amount": 611.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 67, "amount": 3432.0, "vendor": "משאבי אנוש זה אנחנו בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 68, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 69, "amount": 984.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 70, "amount": 552.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 71, "amount": 449.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 72, "amount": 343.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 73, "amount": 785.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 74, "amount": 1276.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 75, "amount": 621.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 76, "amount": 785.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 77, "amount": 573.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 78, "amount": 536.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 79, "amount": 536.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 80, "amount": 609.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 81, "amount": 470.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 82, "amount": 422.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 83, "amount": 470.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 84, "amount": 470.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 85, "amount": 398.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 86, "amount": 435.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 87, "amount": 383.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 88, "amount": 6330.0, "vendor": "סי.אקס.או- מרכז ההשתלמויות לבכירים", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 89, "amount": 50318.0, "vendor": "סער פרומרקט סוכנות לקידום מכירות בע", "category": "כנס סיכום שנה", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null},
+            {"id": 90, "amount": 370400.0, "vendor": "סער פרומרקט סוכנות לקידום מכירות בע", "category": "כנס סיכום שנה", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null},
+            {"id": 91, "amount": 1223.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 92, "amount": 15287.0, "vendor": "ענבר גת שחם פתרונות למידה לארגונים", "category": "יועצי ניהול ופיתוח הדרכה", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 93, "amount": 17996.0, "vendor": "ענבר גת שחם פתרונות למידה לארגונים", "category": "יועצי ניהול ופיתוח הדרכה", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 94, "amount": 2550.0, "vendor": "פאר לוין יועצי תקשורת ואסטרטגיה בעמ", "category": "עיצוב גרפי", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 95, "amount": 667.0, "vendor": "פטיש -  וקסמן לינור הדס אברהם דורין", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 96, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 97, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 98, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 99, "amount": 14000.0, "vendor": "קואטרו יעוץ ניהולי בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 100, "amount": 635.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 101, "amount": 545.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 102, "amount": 492.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 103, "amount": 339.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 104, "amount": 400.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 105, "amount": 400.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 106, "amount": 339.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 107, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 108, "amount": 15000.0, "vendor": "קרן אלוף בע\"מ", "category": "כנס סיכום שנה", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 109, "amount": 1112.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 110, "amount": 1231.0, "vendor": "ר.ב לה רושל פטיסייר בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 111, "amount": 1223.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 112, "amount": 635.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 113, "amount": 923.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 114, "amount": 261.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 115, "amount": 619.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 116, "amount": 1112.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 117, "amount": 522.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 118, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 119, "amount": 978.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 120, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 121, "amount": 200.0, "vendor": "כנס בנושא תקנות הבטיחות החדשות בעבודה", "category": "הדרכות חיצוניות", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null}
         ];
 
         const QUARTER_MONTHS = {
@@ -82,10 +200,9 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const DOC_REF = doc(db, 'dashboardData', 'main'); // מסמך ריכוזי לכל הנתונים
+        const DOC_REF = doc(db, 'dashboardData', 'main'); 
 
         const App = () => {
-            // --- States ---
             const [receipts, setReceipts] = useState(INITIAL_RECEIPTS);
             const [budgets, setBudgets] = useState(INITIAL_BUDGETS);
             const [isLoaded, setIsLoaded] = useState(false);
@@ -111,7 +228,7 @@
                         setBudgets(data.budgets || INITIAL_BUDGETS);
                         setReceipts(data.receipts || INITIAL_RECEIPTS);
                     } else {
-                        // יצירת מסמך ראשוני אם אינו קיים
+                        // אם לא קיים במסד נתונים, נטען את נתוני ה-CSV ונשמור אותם לענן!
                         setDoc(DOC_REF, { budgets: INITIAL_BUDGETS, receipts: INITIAL_RECEIPTS });
                     }
                     setIsLoaded(true);
@@ -142,14 +259,12 @@
                 parentId: null
             });
 
-            // Update form when categories load/change
             useEffect(() => {
                 if (categoriesList.length > 0 && !categoriesList.includes(formData.category)) {
                     setFormData(prev => ({ ...prev, category: categoriesList[0] }));
                 }
             }, [categoriesList]);
 
-            // --- Calculations ---
             const chartData = useMemo(() => {
                 return categoriesList
                     .map((cat) => {
@@ -254,7 +369,6 @@
                 return result;
             }, [receipts, filterVendor, filterCategory, filterMonth, filterQuarter]);
 
-            // --- Handlers ---
             const handleUpdateBudget = (category, amount) => {
                 setBudgets(prev => ({ ...prev, [category]: Number(amount) }));
             };
@@ -345,7 +459,6 @@
                         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
                     `}</style>
 
-                    {/* Background */}
                     <div className="fixed inset-0 bg-slate-950 -z-10">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(30,58,138,0.2),transparent_70%)]"></div>
                         <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
@@ -369,7 +482,6 @@
                     </header>
 
                     <main className="max-w-7xl mx-auto space-y-10 pb-12">
-                        {/* KPI Scoreboard */}
                         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group shadow-2xl">
                                 <div className="absolute top-0 right-0 p-4 opacity-[0.05] group-hover:scale-110 transition-transform"><Wallet size={100} className="text-cyan-400" /></div>
@@ -402,7 +514,6 @@
                             </div>
                         </section>
 
-                        {/* ניתוח איזון תקציבי */}
                         {overagesAnalysis.totalOverage > 0 && (
                             <section className="bg-white/[0.03] backdrop-blur-xl border border-white/10 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
                                 <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-yellow-400 to-rose-500"></div>
@@ -464,7 +575,6 @@
                                             <div className="relative h-10 w-full bg-white/5 rounded-2xl overflow-hidden border border-white/5 shadow-inner">
                                                 <div className="absolute inset-0 h-full opacity-5" style={{ backgroundColor: item.fill }} />
                                                 
-                                                {/* Paid Bar */}
                                                 <div 
                                                     className="absolute top-0 right-0 h-full transition-all duration-1000 flex items-center justify-end px-4 z-10" 
                                                     style={{ 
@@ -476,7 +586,6 @@
                                                     {!item.isOver && (item.paid / item.budget) > 0.15 && <span className="text-[10px] font-black text-slate-900 bg-white/30 px-1.5 py-0.5 rounded backdrop-blur-sm">{((item.paid/item.budget)*100).toFixed(0)}%</span>}
                                                 </div>
 
-                                                {/* Reserved Bar */}
                                                 <div 
                                                     className="absolute top-0 h-full transition-all duration-1000 bg-white/10 backdrop-blur-[2px] border-r border-white/10" 
                                                     style={{ 
@@ -485,7 +594,6 @@
                                                     }}
                                                 />
 
-                                                {/* Over budget label */}
                                                 {item.isOver && (
                                                     <div className="absolute top-0 left-4 h-full flex items-center z-20">
                                                         <span className="text-[10px] font-black text-rose-500 bg-rose-500/10 px-2 py-1 rounded-lg border border-rose-500/20 shadow-lg">חריגה: {item.actualPercent.toFixed(0)}%</span>
@@ -498,7 +606,6 @@
                             </div>
                         </section>
 
-                        {/* Payments Table */}
                         <section className="bg-white/[0.02] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl relative">
                             <div className="p-8 pb-4 flex flex-col gap-3 bg-white/[0.02]">
                                 <div className="flex items-center gap-3 shrink-0">
@@ -621,7 +728,6 @@
                         </section>
                     </main>
 
-                    {/* Settings Modal */}
                     {isSettingsOpen && (
                         <section className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto">
                             <div className="bg-slate-900 border border-white/20 p-8 rounded-[2.5rem] w-full max-w-3xl shadow-2xl relative my-8 animate-in slide-in-from-bottom-10">
@@ -663,7 +769,6 @@
                         </section>
                     )}
 
-                    {/* Add Data Modal */}
                     {isAdding && (
                         <section className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
                             <datalist id="vendors-list">
