@@ -1,1 +1,833 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>דשבורד תקציב למידה - נת"ע</title>
+    
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react"
+        }
+    }
+    </script>
+</head>
+<body class="bg-slate-950">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useMemo, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import * as Lucide from 'lucide-react';
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // חילוץ האייקונים מספריית Lucide
+        const { 
+            PlusCircle, TrendingUp, Wallet, PieChart, BarChart3, Receipt, 
+            Trash2, Edit3, Check, X, ArrowUpRight, ArrowDownRight, Calendar, Settings2, 
+            Plus, Activity, Filter, Search, AlertCircle, ArrowRightLeft, ShieldAlert, 
+            ShieldCheck, Lock, CreditCard, ChevronDown, CornerDownLeft 
+        } = Lucide;
+
+        // --- נתונים התחלתיים ---
+        const INITIAL_BUDGETS = {
+            "הדרכות פנים ארגוניות": 500000,
+            "כנס סיכום שנה": 350000,
+            "הדרכות חיצוניות": 250000,
+            "כלי הדרכה דיגיטליים": 200000,
+            "יועצי ניהול ופיתוח הדרכה": 100000,
+            "כיבוד": 100000,
+            "תפעול לוגיסטי": 100000,
+            "עיצוב גרפי": 45000,
+            "חברות עובדים באגודות מקצועיות": 55000
+        };
+
+        // הנתונים יובאו ושוקללו מקובץ ה-CSV של המשתמש:
+        const INITIAL_RECEIPTS = [
+            {"id": 1, "amount": 6279.0, "vendor": "CBTC Masterclass", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 2, "amount": 3300.0, "vendor": "אונו יזמות והדרכות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 3, "amount": 3300.0, "vendor": "אונו יזמות והדרכות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 4, "amount": 6400.0, "vendor": "אונו יזמות והדרכות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 5, "amount": 6400.0, "vendor": "אונו יזמות והדרכות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 6, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 7, "amount": 619.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 8, "amount": 981.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 9, "amount": 578.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 10, "amount": 1223.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 11, "amount": 10782.0, "vendor": "איגוד המהנדסים לבניה ותשתיות בישראל", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 12, "amount": 638.0, "vendor": "איקן - מס בעמ", "category": "עיצוב גרפי", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 13, "amount": 1020.0, "vendor": "איקן - מס בעמ", "category": "עיצוב גרפי", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 14, "amount": 1318.0, "vendor": "איקן - מס בעמ", "category": "עיצוב גרפי", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null},
+            {"id": 15, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 16, "amount": 14500.0, "vendor": "אלעד דרמון", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 17, "amount": 444.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 18, "amount": 578.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 19, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 20, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 21, "amount": 10133.0, "vendor": "בו בזמן בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 22, "amount": 978.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 23, "amount": 590.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 24, "amount": 522.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 25, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null},
+            {"id": 26, "amount": 1127.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 27, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 28, "amount": 30500.0, "vendor": "ג'אז ורשינין", "category": "יועצי ניהול ופיתוח הדרכה", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 29, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 30, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 31, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 32, "amount": 7000.0, "vendor": "ד\"ר יניב לויתן בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 33, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 34, "amount": 3200.0, "vendor": "דברה לונדון בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 35, "amount": 1200.0, "vendor": "דברה לונדון בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 36, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 37, "amount": 7600.0, "vendor": "דנה פרי", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 38, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 39, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 40, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 41, "amount": 2500.0, "vendor": "הנדסה בגובה - מרכז בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 42, "amount": 2760.0, "vendor": "העמותה לניהול וחקר משאבי אנוש בישרא", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 43, "amount": 920.0, "vendor": "העמותה לניהול וחקר משאבי אנוש בישרא", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 44, "amount": 578.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 45, "amount": 127.0, "vendor": "ווינדמן הפקות בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 46, "amount": 300.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 47, "amount": 350.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 48, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 49, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 50, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 51, "amount": 978.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 52, "amount": 981.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 53, "amount": 1112.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 54, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 55, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 56, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 57, "amount": 6700.0, "vendor": "ליד אפ בע\"מ", "category": "תפעול לוגיסטי", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 58, "amount": 7500.0, "vendor": "לירז מרגלית בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 59, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 60, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 61, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 62, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 63, "amount": 26860.0, "vendor": "מילוא הזנפראץ גלית גרפיקס מצגות אפק", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 64, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 65, "amount": 1223.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 66, "amount": 611.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 67, "amount": 3432.0, "vendor": "משאבי אנוש זה אנחנו בע\"מ", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 68, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 69, "amount": 984.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 70, "amount": 552.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 71, "amount": 449.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 72, "amount": 343.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 73, "amount": 785.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 74, "amount": 1276.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 75, "amount": 621.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 76, "amount": 785.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 77, "amount": 573.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 78, "amount": 536.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 79, "amount": 536.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 80, "amount": 609.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 81, "amount": 470.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 82, "amount": 422.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 83, "amount": 470.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 84, "amount": 470.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 85, "amount": 398.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 86, "amount": 435.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 87, "amount": 383.0, "vendor": "מתוקה פוד סרוויס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 88, "amount": 6330.0, "vendor": "סי.אקס.או- מרכז ההשתלמויות לבכירים", "category": "הדרכות חיצוניות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 89, "amount": 50318.0, "vendor": "סער פרומרקט סוכנות לקידום מכירות בע", "category": "כנס סיכום שנה", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null},
+            {"id": 90, "amount": 370400.0, "vendor": "סער פרומרקט סוכנות לקידום מכירות בע", "category": "כנס סיכום שנה", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null},
+            {"id": 91, "amount": 1223.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 92, "amount": 15287.0, "vendor": "ענבר גת שחם פתרונות למידה לארגונים", "category": "יועצי ניהול ופיתוח הדרכה", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 93, "amount": 17996.0, "vendor": "ענבר גת שחם פתרונות למידה לארגונים", "category": "יועצי ניהול ופיתוח הדרכה", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 94, "amount": 2550.0, "vendor": "פאר לוין יועצי תקשורת ואסטרטגיה בעמ", "category": "עיצוב גרפי", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 95, "amount": 667.0, "vendor": "פטיש -  וקסמן לינור הדס אברהם דורין", "category": "כיבוד", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 96, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 97, "amount": 225.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 98, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 99, "amount": 14000.0, "vendor": "קואטרו יעוץ ניהולי בע\"מ", "category": "הדרכות פנים ארגוניות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 100, "amount": 635.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 101, "amount": 545.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 102, "amount": 492.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 103, "amount": 339.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 104, "amount": 400.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 105, "amount": 400.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 106, "amount": 339.0, "vendor": "קנאפאס בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 107, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 108, "amount": 15000.0, "vendor": "קרן אלוף בע\"מ", "category": "כנס סיכום שנה", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 109, "amount": 1112.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 110, "amount": 1231.0, "vendor": "ר.ב לה רושל פטיסייר בע\"מ", "category": "כיבוד", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 111, "amount": 1223.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 112, "amount": 635.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 113, "amount": 923.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 114, "amount": 261.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 115, "amount": 619.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 116, "amount": 1112.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "פברואר", "status": "שולם", "parentId": null},
+            {"id": 117, "amount": 522.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 118, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 119, "amount": 978.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "מרץ", "status": "שולם", "parentId": null},
+            {"id": 120, "amount": 966.0, "vendor": "עובד/ת חברה", "category": "חברות עובדים באגודות מקצועיות", "quarter": "Q1", "month": "ינואר", "status": "שולם", "parentId": null},
+            {"id": 121, "amount": 200.0, "vendor": "כנס בנושא תקנות הבטיחות החדשות בעבודה", "category": "הדרכות חיצוניות", "quarter": "Q2", "month": "אפריל", "status": "שולם", "parentId": null}
+        ];
+
+        const QUARTER_MONTHS = {
+            "Q1": ["ינואר", "פברואר", "מרץ"],
+            "Q2": ["אפריל", "מאי", "יוני"],
+            "Q3": ["יולי", "אוגוסט", "ספטמבר"],
+            "Q4": ["אוקטובר", "נובמבר", "דצמבר"]
+        };
+
+        const ALL_MONTHS = Object.values(QUARTER_MONTHS).flat();
+        const QUARTERS = Object.keys(QUARTER_MONTHS);
+        const COLORS = ['#22d3ee', '#fbbf24', '#818cf8', '#34d399', '#f87171', '#a855f7', '#ec4899', '#6366f1', '#10b981', '#f59e0b'];
+
+        // --- הגדרות Firebase ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDkTzK-QP9YdPXHrE_gIhNtRUR2I98w1TA",
+            authDomain: "dashboardbudgetnta.firebaseapp.com",
+            projectId: "dashboardbudgetnta",
+            storageBucket: "dashboardbudgetnta.firebasestorage.app",
+            messagingSenderId: "528416479001",
+            appId: "1:528416479001:web:0cc0f3749bce8341419788"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const DOC_REF = doc(db, 'dashboardData', 'main'); 
+
+        const App = () => {
+            const [receipts, setReceipts] = useState(INITIAL_RECEIPTS);
+            const [budgets, setBudgets] = useState(INITIAL_BUDGETS);
+            const [isLoaded, setIsLoaded] = useState(false);
+            
+            const [editingId, setEditingId] = useState(null);
+            const [isAdding, setIsAdding] = useState(false);
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+            
+            const [filterVendor, setFilterVendor] = useState("");
+            const [filterCategory, setFilterCategory] = useState("הכל");
+            const [filterMonth, setFilterMonth] = useState("הכל");
+            const [filterQuarter, setFilterQuarter] = useState("הכל");
+
+            const [newCategoryName, setNewCategoryName] = useState("");
+            const [editingCategoryKey, setEditingCategoryKey] = useState(null);
+            const [tempCategoryName, setTempCategoryName] = useState("");
+
+            // --- Firebase Sync ---
+            useEffect(() => {
+                const unsubscribe = onSnapshot(DOC_REF, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        setBudgets(data.budgets || INITIAL_BUDGETS);
+                        setReceipts(data.receipts || INITIAL_RECEIPTS);
+                    } else {
+                        // אם לא קיים במסד נתונים, נטען את נתוני ה-CSV ונשמור אותם לענן!
+                        setDoc(DOC_REF, { budgets: INITIAL_BUDGETS, receipts: INITIAL_RECEIPTS });
+                    }
+                    setIsLoaded(true);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const updateFirestore = (newBudgets, newReceipts) => {
+                setDoc(DOC_REF, { budgets: newBudgets, receipts: newReceipts }, { merge: true }).catch(console.error);
+            };
+
+            const categoriesList = useMemo(() => Object.keys(budgets), [budgets]);
+
+            const existingVendors = useMemo(() => {
+                const vendors = receipts
+                    .filter(r => r.parentId === null)
+                    .map(r => r.vendor);
+                return Array.from(new Set(vendors)).sort();
+            }, [receipts]);
+
+            const [formData, setFormData] = useState({
+                amount: '',
+                vendor: '',
+                category: categoriesList[0] || "",
+                quarter: QUARTERS[0],
+                month: QUARTER_MONTHS[QUARTERS[0]][0],
+                status: "שולם",
+                parentId: null
+            });
+
+            useEffect(() => {
+                if (categoriesList.length > 0 && !categoriesList.includes(formData.category)) {
+                    setFormData(prev => ({ ...prev, category: categoriesList[0] }));
+                }
+            }, [categoriesList]);
+
+            const chartData = useMemo(() => {
+                return categoriesList
+                    .map((cat) => {
+                        const catReceipts = receipts.filter(r => r.category === cat);
+                        
+                        const paid = catReceipts
+                            .filter(r => r.status === "שולם")
+                            .reduce((sum, r) => sum + Number(r.amount), 0);
+                            
+                        const totalReservedRaw = catReceipts
+                            .filter(r => r.status === "משוריין" && !r.parentId)
+                            .reduce((sum, r) => sum + Number(r.amount), 0);
+                        
+                        const childPaymentsSum = catReceipts.filter(r => r.parentId && r.status === "שולם").reduce((s, r) => s + Number(r.amount), 0);
+                        const netReserved = Math.max(0, totalReservedRaw - childPaymentsSum);
+
+                        const budget = budgets[cat] || 0;
+                        const totalCommitment = paid + netReserved;
+                        const actualPercent = budget > 0 ? (totalCommitment / budget) * 100 : 0;
+                        const visualValue = Math.min(actualPercent, 100);
+                        
+                        return { 
+                            name: cat, 
+                            paid, 
+                            reserved: netReserved, 
+                            budget, 
+                            value: visualValue,
+                            actualPercent,
+                            isOver: totalCommitment > budget
+                        };
+                    })
+                    .sort((a, b) => b.budget - a.budget) 
+                    .map((item, index) => ({
+                        ...item,
+                        fill: COLORS[index % COLORS.length]
+                    }));
+            }, [receipts, budgets, categoriesList]);
+
+            const overagesAnalysis = useMemo(() => {
+                const overages = chartData.filter(d => d.isOver);
+                const totalOverage = overages.reduce((sum, d) => sum + ((d.paid + d.reserved) - d.budget), 0);
+                const surpluses = chartData.filter(d => !d.isOver);
+                const totalSurplus = surpluses.reduce((sum, d) => sum + (d.budget - (d.paid + d.reserved)), 0);
+                
+                return {
+                    totalOverage,
+                    totalSurplus,
+                    overages,
+                    surprises: surpluses,
+                    canBalance: totalSurplus >= totalOverage
+                };
+            }, [chartData]);
+
+            const categoryColorMap = useMemo(() => {
+                const map = {};
+                chartData.forEach(item => { map[item.name] = item.fill; });
+                return map;
+            }, [chartData]);
+
+            const totals = useMemo(() => {
+                const totalBudget = Object.values(budgets).reduce((a, b) => a + Number(b), 0);
+                const totalPaid = receipts.filter(r => r.status === "שולם").reduce((sum, r) => sum + Number(r.amount), 0);
+                const totalReservedRaw = receipts.filter(r => r.status === "משוריין").reduce((sum, r) => sum + Number(r.amount), 0);
+                const totalChildPayments = receipts.filter(r => r.parentId).reduce((sum, r) => sum + Number(r.amount), 0);
+                const netReserved = Math.max(0, totalReservedRaw - totalChildPayments);
+                const totalSpent = totalPaid + netReserved;
+
+                return {
+                    budget: totalBudget,
+                    spent: totalSpent,
+                    paid: totalPaid,
+                    reserved: netReserved,
+                    remaining: totalBudget - totalSpent,
+                    percentUsed: totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0
+                };
+            }, [receipts, budgets]);
+
+            const rowOverageMap = useMemo(() => {
+                const map = {};
+                receipts.filter(r => r.parentId).forEach(child => {
+                    map[child.parentId] = (map[child.parentId] || 0) + Number(child.amount);
+                });
+                return map;
+            }, [receipts]);
+
+            const sortedReceiptsDisplay = useMemo(() => {
+                const filtered = receipts.filter(r => {
+                    const vendorMatch = r.vendor.toLowerCase().includes(filterVendor.toLowerCase());
+                    const categoryMatch = filterCategory === "הכל" || r.category === filterCategory;
+                    const monthMatch = filterMonth === "הכל" || r.month === filterMonth;
+                    const quarterMatch = filterQuarter === "הכל" || r.quarter === filterQuarter;
+                    return vendorMatch && categoryMatch && monthMatch && quarterMatch;
+                });
+
+                const parents = filtered.filter(r => !r.parentId);
+                const result = [];
+                parents.forEach(parent => {
+                    result.push(parent);
+                    const children = filtered.filter(r => r.parentId === parent.id);
+                    children.forEach(child => result.push(child));
+                });
+                return result;
+            }, [receipts, filterVendor, filterCategory, filterMonth, filterQuarter]);
+
+            const handleUpdateBudget = (category, amount) => {
+                setBudgets(prev => ({ ...prev, [category]: Number(amount) }));
+            };
+            
+            const handleAddCategory = () => {
+                if (!newCategoryName || budgets[newCategoryName]) return;
+                setBudgets(prev => ({ ...prev, [newCategoryName]: 0 }));
+                setNewCategoryName("");
+            };
+
+            const handleRenameCategory = (oldName) => {
+                if (!tempCategoryName || tempCategoryName === oldName) { setEditingCategoryKey(null); return; }
+                const newBudgets = { ...budgets };
+                newBudgets[tempCategoryName] = newBudgets[oldName];
+                delete newBudgets[oldName];
+                const updatedReceipts = receipts.map(r => r.category === oldName ? { ...r, category: tempCategoryName } : r);
+                setBudgets(newBudgets);
+                setReceipts(updatedReceipts);
+                setEditingCategoryKey(null);
+                updateFirestore(newBudgets, updatedReceipts);
+            };
+
+            const handleDeleteCategory = (cat) => {
+                if(window.confirm(`האם אתה בטוח שברצונך למחוק את הקטגוריה "${cat}"? מחיקה זו אינה מוחקת תשלומים קיימים שמשויכים לה.`)) {
+                    const newBudgets = { ...budgets };
+                    delete newBudgets[cat];
+                    setBudgets(newBudgets);
+                }
+            };
+
+            const handleSaveSettings = () => {
+                updateFirestore(budgets, receipts);
+                setIsSettingsOpen(false);
+            };
+
+            const handleAddReceipt = (e) => {
+                e.preventDefault();
+                if (!formData.amount || !formData.vendor || !formData.category) return;
+                const newReceipt = { ...formData, id: Date.now(), amount: Number(formData.amount) };
+                const updatedReceipts = [newReceipt, ...receipts];
+                setReceipts(updatedReceipts);
+                setFormData({ amount: '', vendor: '', category: categoriesList[0], quarter: QUARTERS[0], month: QUARTER_MONTHS[QUARTERS[0]][0], status: "שולם", parentId: null });
+                setIsAdding(false);
+                updateFirestore(budgets, updatedReceipts);
+            };
+
+            const openSubRowForm = (parent) => {
+                setFormData({
+                    amount: '',
+                    vendor: `${parent.vendor} - תשלום`,
+                    category: parent.category,
+                    quarter: parent.quarter,
+                    month: parent.month,
+                    status: "שולם",
+                    parentId: parent.id
+                });
+                setIsAdding(true);
+            };
+
+            const deleteReceipt = (id) => {
+                if(window.confirm("למחוק נתון זה?")) {
+                    const updatedReceipts = receipts.filter(r => r.id !== id && r.parentId !== id);
+                    setReceipts(updatedReceipts);
+                    updateFirestore(budgets, updatedReceipts);
+                }
+            };
+
+            const startEditing = (receipt) => { setEditingId(receipt.id); setFormData({ ...receipt }); };
+            
+            const saveEdit = () => {
+                const updatedReceipts = receipts.map(r => r.id === editingId ? { ...formData, amount: Number(formData.amount) } : r);
+                setReceipts(updatedReceipts);
+                setEditingId(null);
+                updateFirestore(budgets, updatedReceipts);
+            };
+
+            if (!isLoaded) {
+                return <div className="min-h-screen flex items-center justify-center bg-slate-950"><div className="text-cyan-400 font-bold text-2xl flex items-center gap-3"><Activity className="animate-spin" size={32} /> נת"ע - טוען מסד נתונים...</div></div>;
+            }
+
+            return (
+                <div className="min-h-screen relative overflow-x-hidden text-slate-100 p-4 md:p-8 font-['Heebo']" dir="rtl">
+                    <style>{`
+                        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@100..900&display=swap');
+                        * { font-family: 'Heebo', sans-serif !important; }
+                        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+                        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+                    `}</style>
+
+                    <div className="fixed inset-0 bg-slate-950 -z-10">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(30,58,138,0.2),transparent_70%)]"></div>
+                        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
+                        <div className="absolute top-[20%] -right-[10%] w-[35%] h-[35%] bg-yellow-400/5 rounded-full blur-[100px]"></div>
+                    </div>
+
+                    <header className="max-w-7xl mx-auto mb-12 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative">
+                        <div>
+                            <h1 className="text-4xl font-black bg-gradient-to-l from-yellow-400 via-yellow-100 to-cyan-300 bg-clip-text text-transparent">
+                                דשבורד תקציב שנתי - מחלקת למידה
+                            </h1>
+                        </div>
+                        <div className="flex gap-4">
+                            <button onClick={() => setIsSettingsOpen(true)} className="bg-white/5 hover:bg-white/10 text-white border border-white/10 font-bold py-3 px-6 rounded-2xl flex items-center gap-2 transition-all backdrop-blur-md shadow-lg">
+                                <Settings2 size={20} className="text-yellow-400" /> הגדרות תקציב
+                            </button>
+                            <button onClick={() => { setFormData(f => ({...f, parentId: null})); setIsAdding(true); }} className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 px-6 rounded-2xl flex items-center gap-2 transition-all shadow-xl shadow-cyan-500/20 active:scale-95">
+                                <PlusCircle size={20} /> הוספת נתון
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto space-y-10 pb-12">
+                        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group shadow-2xl">
+                                <div className="absolute top-0 right-0 p-4 opacity-[0.05] group-hover:scale-110 transition-transform"><Wallet size={100} className="text-cyan-400" /></div>
+                                <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-1 opacity-60">סה"כ תקציב שנתי</p>
+                                <h3 className="text-4xl font-black text-white">₪{totals.budget.toLocaleString()}</h3>
+                                <div className="mt-4 flex items-center text-xs text-cyan-400 gap-1.5 bg-cyan-500/10 w-fit px-3 py-1 rounded-full font-bold border border-cyan-500/20"><Activity size={12} /><span>{categoriesList.length} קטגוריות</span></div>
+                            </div>
+                            <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group shadow-2xl">
+                                <div className="absolute top-0 right-0 p-4 opacity-[0.05] group-hover:scale-110 transition-transform"><CreditCard size={100} className="text-emerald-400" /></div>
+                                <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-1 opacity-60">סה"כ שולם בפועל</p>
+                                <h3 className="text-4xl font-black text-emerald-400 font-mono">₪{totals.paid.toLocaleString()}</h3>
+                                <div className="mt-5 w-full bg-white/5 h-2.5 rounded-full overflow-hidden">
+                                    <div className="bg-emerald-400 h-full" style={{ width: `${Math.min((totals.paid/totals.budget)*100, 100)}%` }} />
+                                </div>
+                            </div>
+                            <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group shadow-2xl">
+                                <div className="absolute top-0 right-0 p-4 opacity-[0.05] group-hover:scale-110 transition-transform"><Lock size={100} className="text-yellow-400" /></div>
+                                <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-1 opacity-60">סה"כ משוריין (יתרה)</p>
+                                <h3 className="text-4xl font-black text-yellow-400 font-mono">₪{totals.reserved.toLocaleString()}</h3>
+                                <p className="text-xs text-slate-500 mt-5 font-black">מתוך שריונות קיימים</p>
+                            </div>
+                            <div className={`bg-white/[0.03] backdrop-blur-xl border ${overagesAnalysis.totalOverage > 0 ? 'border-rose-500/30' : 'border-white/10'} p-8 rounded-[2rem] relative overflow-hidden group shadow-2xl`}>
+                                <div className="absolute top-0 right-0 p-4 opacity-[0.05] group-hover:scale-110 transition-transform"><AlertCircle size={100} className="text-rose-500" /></div>
+                                <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-1 opacity-60">סך חריגות מצטבר</p>
+                                <h3 className={`text-4xl font-black font-mono ${overagesAnalysis.totalOverage > 0 ? 'text-rose-500' : 'text-slate-500'}`}>₪{overagesAnalysis.totalOverage.toLocaleString()}</h3>
+                                <div className={`mt-4 flex items-center text-xs gap-1.5 w-fit px-3 py-1 rounded-full font-bold border ${overagesAnalysis.totalOverage > 0 ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
+                                    {overagesAnalysis.totalOverage > 0 ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
+                                    <span>{overagesAnalysis.totalOverage > 0 ? 'חריגה ממסגרת' : 'במסגרת התקציב'}</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        {overagesAnalysis.totalOverage > 0 && (
+                            <section className="bg-white/[0.03] backdrop-blur-xl border border-white/10 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-yellow-400 to-rose-500"></div>
+                                <div className="flex flex-col lg:flex-row gap-8 items-start lg:items-center">
+                                    <div className="p-4 bg-yellow-500/10 rounded-2xl text-yellow-500"><ArrowRightLeft size={32} /></div>
+                                    <div className="flex-1">
+                                        <h3 className="text-2xl font-black text-white mb-2">ניתוח איזון תקציבי</h3>
+                                        <p className="text-slate-400 max-w-3xl leading-relaxed">
+                                            נמצאו חריגות בסך <span className="text-rose-500 font-bold">₪{overagesAnalysis.totalOverage.toLocaleString()}</span>. 
+                                            {overagesAnalysis.canBalance ? (
+                                                <>
+                                                    התקציב הכולל עדיין מאוזן. ניתן לכסות את החריגות באמצעות יתרות פנויות של <span className="text-emerald-400 font-bold">₪{overagesAnalysis.totalSurplus.toLocaleString()}</span> מקטגוריות אחרות.
+                                                </>
+                                            ) : (
+                                                <>
+                                                    קיימת חריגה <span className="text-rose-500 font-bold">מהתקציב הכולל</span>. היתרות בקטגוריות החיוביות (₪{overagesAnalysis.totalSurplus.toLocaleString()}) אינן מספיקות לכיסוי הגרעון.
+                                                </>
+                                            )}
+                                        </p>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 p-8 rounded-[2.5rem] lg:col-span-3 shadow-2xl">
+                                <div className="flex items-center justify-between mb-10">
+                                    <div className="flex items-center gap-3"><div className="p-2 bg-cyan-500/20 rounded-xl text-cyan-400"><BarChart3 size={22} /></div><h3 className="text-xl font-black text-white">פירוט תקציב מול ביצוע</h3></div>
+                                    <div className="flex gap-4 items-center">
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-cyan-500"/> שולם</div>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-white/20"/> משוריין</div>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-12 pl-12 pr-4 pb-4"> 
+                                    {chartData.map((item) => (
+                                        <div key={item.name} className="flex flex-col space-y-4 pr-1 group"> 
+                                            <div className="flex justify-between items-end gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.fill }} />
+                                                    <span className="font-black text-white text-lg leading-tight flex items-center gap-2">
+                                                        {item.name}
+                                                        {item.isOver && <AlertCircle size={16} className="text-rose-500 animate-pulse" />}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className={`font-black text-lg ${item.isOver ? 'text-rose-500' : 'text-white'}`}>₪{item.paid.toLocaleString()}</span>
+                                                        <span className="text-slate-500 text-xs font-bold">שולם</span>
+                                                    </div>
+                                                    <div className="flex items-baseline gap-2 opacity-60">
+                                                        <span className="text-white text-sm font-bold">₪{item.reserved.toLocaleString()}</span>
+                                                        <span className="text-slate-500 text-[10px] font-bold">שוריין</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-black mt-1 uppercase tracking-tight">תקציב: ₪{item.budget.toLocaleString()}</div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="relative h-10 w-full bg-white/5 rounded-2xl overflow-hidden border border-white/5 shadow-inner">
+                                                <div className="absolute inset-0 h-full opacity-5" style={{ backgroundColor: item.fill }} />
+                                                
+                                                <div 
+                                                    className="absolute top-0 right-0 h-full transition-all duration-1000 flex items-center justify-end px-4 z-10" 
+                                                    style={{ 
+                                                        width: `${Math.min((item.paid / item.budget) * 100, 100)}%`, 
+                                                        backgroundColor: item.fill, 
+                                                        boxShadow: `0 0 20px ${item.fill}30` 
+                                                    }}
+                                                >
+                                                    {!item.isOver && (item.paid / item.budget) > 0.15 && <span className="text-[10px] font-black text-slate-900 bg-white/30 px-1.5 py-0.5 rounded backdrop-blur-sm">{((item.paid/item.budget)*100).toFixed(0)}%</span>}
+                                                </div>
+
+                                                <div 
+                                                    className="absolute top-0 h-full transition-all duration-1000 bg-white/10 backdrop-blur-[2px] border-r border-white/10" 
+                                                    style={{ 
+                                                        right: `${Math.min((item.paid / item.budget) * 100, 100)}%`,
+                                                        width: `${Math.min((item.reserved / item.budget) * 100, 100 - (item.paid / item.budget) * 100)}%` 
+                                                    }}
+                                                />
+
+                                                {item.isOver && (
+                                                    <div className="absolute top-0 left-4 h-full flex items-center z-20">
+                                                        <span className="text-[10px] font-black text-rose-500 bg-rose-500/10 px-2 py-1 rounded-lg border border-rose-500/20 shadow-lg">חריגה: {item.actualPercent.toFixed(0)}%</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="bg-white/[0.02] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl relative">
+                            <div className="p-8 pb-4 flex flex-col gap-3 bg-white/[0.02]">
+                                <div className="flex items-center gap-3 shrink-0">
+                                    <div className="p-2.5 bg-emerald-500/20 rounded-xl text-emerald-400 shadow-lg">
+                                        <Receipt size={24} />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-white tracking-tight">פוטנציאל תשלומים/תשלומים בפועל</h3>
+                                </div>
+                                
+                                <div className="flex flex-wrap items-center gap-4 w-full border-t border-white/5 pt-4">
+                                    <div className="relative group flex-1 md:flex-none">
+                                        <Search size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors" />
+                                        <input type="text" placeholder="חיפוש ספק..." className="w-full md:w-40 bg-slate-900/50 border border-white/10 rounded-xl pr-10 pl-4 py-2.5 text-sm text-white outline-none focus:border-cyan-500 font-bold shadow-inner" value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)} />
+                                    </div>
+                                    <select className="bg-slate-900/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-cyan-500 font-bold cursor-pointer" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                                        <option value="הכל">כל הקטגוריות</option>
+                                        {categoriesList.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <select className="bg-slate-900/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-cyan-500 font-bold cursor-pointer" value={filterQuarter} onChange={(e) => setFilterQuarter(e.target.value)}>
+                                        <option value="הכל">כל הרבעונים</option>
+                                        {QUARTERS.map(q => <option key={q} value={q}>{q}</option>)}
+                                    </select>
+                                    <select className="bg-slate-900/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-cyan-500 font-bold cursor-pointer" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
+                                        <option value="הכל">כל החודשים</option>
+                                        {ALL_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-right border-collapse">
+                                    <thead>
+                                        <tr className="text-slate-500 border-b border-white/5 bg-white/[0.04]">
+                                            <th className="p-6 font-black text-sm uppercase tracking-wide">ספק</th>
+                                            <th className="p-6 text-center font-black text-sm uppercase tracking-wide">סטטוס</th>
+                                            <th className="p-6 text-center font-black text-sm uppercase tracking-wide">קטגוריה</th>
+                                            <th className="p-6 font-black text-sm uppercase tracking-wide text-right">סכום</th>
+                                            <th className="p-6 text-center font-black text-sm uppercase tracking-wide">מועד</th>
+                                            <th className="p-6 text-left font-black text-sm uppercase tracking-wide">ניהול</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {sortedReceiptsDisplay.length === 0 ? (
+                                            <tr><td colSpan="6" className="p-24 text-center text-slate-500 font-bold text-lg italic opacity-40">לא נמצאו נתונים התואמות לחיפוש.</td></tr>
+                                        ) : (
+                                            sortedReceiptsDisplay.map(receipt => {
+                                                const isReservedWithOverage = receipt.status === 'משוריין' && !receipt.parentId && (rowOverageMap[receipt.id] || 0) > receipt.amount;
+
+                                                return (
+                                                    <tr key={receipt.id} className={`hover:bg-white/[0.03] transition-all group border-b border-white/[0.01] ${receipt.parentId ? 'bg-white/[0.015]' : ''}`}>
+                                                        <td className="p-6">
+                                                            {editingId === receipt.id ? (
+                                                                <input className="bg-slate-800 border border-cyan-500/50 rounded-xl px-4 py-2 w-full text-white outline-none font-bold shadow-inner" value={formData.vendor} onChange={(e) => setFormData({...formData, vendor: e.target.value})} list="vendors-list" />
+                                                            ) : (
+                                                                <div className={`flex items-center gap-3 ${receipt.parentId ? 'mr-10' : ''}`}>
+                                                                    {receipt.parentId && <CornerDownLeft size={16} className="text-slate-600" />}
+                                                                    <div className="flex flex-col">
+                                                                        <span className="font-black text-white text-lg tracking-tight group-hover:text-cyan-400 transition-colors leading-tight flex items-center gap-2">
+                                                                            {receipt.vendor}
+                                                                            {isReservedWithOverage && <AlertCircle size={16} className="text-rose-500 animate-bounce" />}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-slate-600 font-bold mt-1 opacity-60">ID: #{receipt.id.toString().slice(-4)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-6 text-center">
+                                                            {editingId === receipt.id ? (
+                                                                <select className="bg-slate-800 border border-cyan-500/50 rounded-xl px-2 py-2 text-xs text-white outline-none font-bold" value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}>
+                                                                    <option value="שולם">שולם</option>
+                                                                    <option value="משוריין">משוריין</option>
+                                                                </select>
+                                                            ) : (
+                                                                <span className={`px-3 py-1 rounded-lg text-[10px] font-black inline-flex items-center gap-1.5 w-24 justify-center ${receipt.status === 'שולם' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}>
+                                                                    {receipt.status === 'שולם' ? <CreditCard size={10} /> : <Lock size={10} />}
+                                                                    {receipt.status}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-6 text-center">
+                                                            <span className="px-4 py-1.5 rounded-full text-[11px] font-black shadow-sm inline-block border backdrop-blur-md" style={{ backgroundColor: `${categoryColorMap[receipt.category]}15`, color: categoryColorMap[receipt.category], borderColor: `${categoryColorMap[receipt.category]}30` }}>{receipt.category}</span>
+                                                        </td>
+                                                        <td className={`p-6 font-black text-right ${isReservedWithOverage ? 'text-rose-500' : 'text-yellow-400'}`}>
+                                                            {editingId === receipt.id ? (
+                                                                <input type="number" className="bg-slate-800 border border-cyan-500/50 rounded-xl px-3 py-2 w-32 text-white outline-none text-left font-black" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} />
+                                                            ) : (
+                                                                <span className="text-xl tracking-tighter">₪{Number(receipt.amount).toLocaleString()}</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-6 text-center">
+                                                            <div className="flex items-center justify-center gap-3 text-slate-400 font-black bg-white/5 w-fit mx-auto px-4 py-2 rounded-2xl border border-white/5 shadow-inner">
+                                                                <Calendar size={14} className="text-slate-600" /><span className="text-xs">{receipt.month}</span><span className="opacity-20">|</span><span className="text-xs">{receipt.quarter}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-6 text-left">
+                                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0">
+                                                                {editingId === receipt.id ? (
+                                                                    <>
+                                                                        <button onClick={saveEdit} className="p-2.5 text-emerald-400 hover:bg-emerald-400/10 rounded-xl transition-colors"><Check size={22} /></button>
+                                                                        <button onClick={() => setEditingId(null)} className="p-2.5 text-rose-400 hover:bg-rose-400/10 rounded-xl transition-colors"><X size={22} /></button>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        {!receipt.parentId && receipt.status === 'משוריין' && (
+                                                                            <button onClick={() => openSubRowForm(receipt)} title="הוסף תשלום מהשריון" className="p-2.5 text-emerald-400 hover:bg-emerald-400/10 rounded-xl transition-all"><Plus size={20} /></button>
+                                                                        )}
+                                                                        <button onClick={() => startEditing(receipt)} className="p-2.5 text-slate-400 hover:text-cyan-400 hover:bg-cyan-400/10 rounded-xl transition-all shadow-lg"><Edit3 size={20} /></button>
+                                                                        <button onClick={() => deleteReceipt(receipt.id)} className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all shadow-lg"><Trash2 size={20} /></button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </main>
+
+                    {isSettingsOpen && (
+                        <section className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto">
+                            <div className="bg-slate-900 border border-white/20 p-8 rounded-[2.5rem] w-full max-w-3xl shadow-2xl relative my-8 animate-in slide-in-from-bottom-10">
+                                <div className="flex justify-between items-center mb-8">
+                                    <h2 className="text-2xl font-black text-white flex items-center gap-3"><div className="p-2 bg-yellow-500/20 rounded-xl"><Settings2 className="text-yellow-400" /></div> ניהול מבנה תקציב</h2>
+                                    <button onClick={handleSaveSettings} className="text-slate-400 hover:text-white p-2 hover:bg-white/10 rounded-full"><X /></button>
+                                </div>
+                                <div className="space-y-6">
+                                    <div className="flex gap-4 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-inner">
+                                        <input type="text" placeholder="שם קטגוריה חדשה..." className="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-yellow-400 transition-all text-white font-bold" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+                                        <button onClick={handleAddCategory} className="bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black px-8 rounded-xl active:scale-95 shadow-lg"><Plus size={24} /></button>
+                                    </div>
+                                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-3 custom-scrollbar">
+                                        {categoriesList.map(cat => (
+                                            <div key={cat} className="flex flex-col md:flex-row gap-6 p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-all group/item shadow-sm">
+                                                <div className="flex-1 flex items-center gap-4">
+                                                    {editingCategoryKey === cat ? (
+                                                        <div className="flex gap-2 w-full"><input className="bg-slate-800 border border-yellow-500/50 rounded-xl px-4 py-2 text-white w-full font-bold outline-none ring-2 ring-yellow-500/20 shadow-inner" value={tempCategoryName} onChange={(e) => setTempCategoryName(e.target.value)} autoFocus /><button onClick={() => handleRenameCategory(cat)} className="text-emerald-400"><Check /></button><button onClick={() => setEditingCategoryKey(null)} className="text-rose-400"><X /></button></div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-black text-xl text-white min-w-[140px] leading-tight">{cat}</span>
+                                                            <button onClick={() => { setEditingCategoryKey(cat); setTempCategoryName(cat); }} className="text-slate-500 hover:text-cyan-400 opacity-0 group-hover/item:opacity-100 p-1.5 hover:bg-white/10 rounded-lg transition-all"><Edit3 size={16} /></button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mr-2 opacity-60">תקציב שנתי</span>
+                                                        <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-black">₪</span><input type="number" className="bg-slate-800 border border-white/10 rounded-xl pl-4 pr-10 py-2 w-40 text-left text-yellow-400 font-black text-lg outline-none focus:border-yellow-500/50 shadow-inner" value={budgets[cat]} onChange={(e) => handleUpdateBudget(cat, e.target.value)} /></div>
+                                                    </div>
+                                                    <button onClick={() => handleDeleteCategory(cat)} className="text-slate-600 hover:text-rose-500 p-2 hover:bg-rose-500/10 rounded-xl transition-all shadow-sm"><Trash2 size={22} /></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <button onClick={handleSaveSettings} className="w-full bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-xl mt-10 transition-all text-lg border border-white/10 shadow-2xl">סיום ועדכון נתונים</button>
+                            </div>
+                        </section>
+                    )}
+
+                    {isAdding && (
+                        <section className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+                            <datalist id="vendors-list">
+                                {existingVendors.map(vendor => (
+                                    <option key={vendor} value={vendor} />
+                                ))}
+                            </datalist>
+
+                            <div className="bg-slate-900 border border-white/20 p-8 rounded-[2.5rem] w-full max-w-xl shadow-2xl animate-in zoom-in border-t-white/10">
+                                <div className="flex justify-between items-center mb-8"><h2 className="text-2xl font-black text-white flex items-center gap-3"><div className="p-2 bg-cyan-500/20 rounded-xl"><PlusCircle className="text-cyan-400" /></div> {formData.parentId ? 'הוספת תשלום מתוך שריון' : 'הוספת נתון חדש'}</h2><button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-white p-2 hover:bg-white/10 rounded-full"><X /></button></div>
+                                <form onSubmit={handleAddReceipt} className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">ספק</label>
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold shadow-inner" 
+                                                value={formData.vendor} 
+                                                onChange={(e) => setFormData({...formData, vendor: e.target.value})} 
+                                                list="vendors-list" 
+                                                placeholder="הקלד שם ספק..."
+                                            />
+                                        </div>
+                                        <div className="space-y-2"><label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">סכום (₪)</label><input type="number" required className="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold shadow-inner" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} /></div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2"><label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">קטגוריה משויכת</label><select className="w-full bg-slate-800 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold cursor-pointer shadow-inner disabled:opacity-50" disabled={!!formData.parentId} value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})}>{categoriesList.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">סטטוס תשלום</label>
+                                            <div className="grid grid-cols-2 gap-2 bg-white/5 p-1 rounded-xl border border-white/5 h-[58px]">
+                                                <button type="button" disabled={!!formData.parentId} onClick={() => setFormData({...formData, status: "שולם"})} className={`rounded-lg font-black text-xs transition-all ${formData.status === 'שולם' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'} disabled:opacity-50`}>שולם</button>
+                                                <button type="button" disabled={!!formData.parentId} onClick={() => setFormData({...formData, status: "משוריין"})} className={`rounded-lg font-black text-xs transition-all ${formData.status === 'משוריין' ? 'bg-yellow-500 text-slate-950' : 'text-slate-400 hover:text-white'} disabled:opacity-50`}>משוריין</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2"><label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">רבעון</label><select className="w-full bg-slate-800 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold cursor-pointer shadow-inner disabled:opacity-50" disabled={!!formData.parentId} value={formData.quarter} onChange={(e) => setFormData({...formData, quarter: e.target.value})}>{QUARTERS.map(q => <option key={q} value={q}>{q}</option>)}</select></div>
+                                        <div className="space-y-2"><label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">חודש</label><select className="w-full bg-slate-800 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold cursor-pointer shadow-inner disabled:opacity-50" disabled={!!formData.parentId} value={formData.month} onChange={(e) => setFormData({...formData, month: e.target.value})}>{(QUARTER_MONTHS[formData.quarter] || []).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                                    </div>
+                                    <button type="submit" disabled={categoriesList.length === 0} className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black py-5 rounded-2xl mt-4 active:scale-95 disabled:opacity-30 text-xl tracking-tight shadow-xl shadow-cyan-500/20 transition-all leading-none">
+                                        {formData.parentId ? 'אישור משיכה מהשריון' : 'שמירת נתון למערכת'}
+                                    </button>
+                                </form>
+                            </div>
+                        </section>
+                    )}
+
+                    <footer className="max-w-7xl mx-auto mt-20 pt-10 border-t border-white/5 text-center text-slate-600 text-sm pb-16 opacity-60">
+                        <span className="font-black tracking-widest text-lg uppercase">מערכת ניהול תקציב נת"ע © {new Date().getFullYear()}</span>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
