@@ -51,8 +51,6 @@
             "חברות עובדים באגודות מקצועיות": 55000
         };
 
-        // הנתונים הוסרו מכאן כיוון שהם כבר נשמרו ב-Firebase.
-        // אם הדאטהבייס יימחק בעתיד, הוא יתחיל ריק.
         const INITIAL_RECEIPTS = [];
 
         const QUARTER_MONTHS = {
@@ -103,7 +101,6 @@
                         const data = docSnap.data();
                         setBudgets(data.budgets || INITIAL_BUDGETS);
                         
-                        // שכבת הגנה לוידוא נתונים ומניעת קריסות (toString undefined)
                         const fetchedReceipts = data.receipts || [];
                         const safeReceipts = fetchedReceipts.map((r, i) => ({
                             ...r,
@@ -292,11 +289,12 @@
                 if (!formData.amount || !formData.vendor || !formData.category) return;
                 
                 let finalParentId = formData.parentId;
+                const newId = Date.now();
+                let currentReceipts = [...receipts];
                 
-                // לוגיקת קינון אוטומטי - אם לא הוגדר הורה, והסטטוס הוא 'שולם'
+                // לוגיקת קינון: הוספת 'שולם' למשוריין קיים
                 if (!finalParentId && formData.status === "שולם") {
-                    // חיפוש האם קיים שריון פעיל (שאינו תשלום מקונן בעצמו) לאותו ספק
-                    const existingReserved = receipts.find(r => 
+                    const existingReserved = currentReceipts.find(r => 
                         r.vendor === formData.vendor && 
                         r.status === "משוריין" && 
                         !r.parentId
@@ -309,16 +307,27 @@
 
                 const newReceipt = { 
                     ...formData, 
-                    id: Date.now(), 
+                    id: newId, 
                     amount: Number(formData.amount),
                     parentId: finalParentId 
                 };
                 
-                const updatedReceipts = [newReceipt, ...receipts];
-                setReceipts(updatedReceipts);
+                currentReceipts.unshift(newReceipt);
+
+                // לוגיקת סנכרון הפוך: הוספת משוריין ואסיפת 'שולמים' יתומים קיימים לאותו ספק
+                if (formData.status === "משוריין" && !formData.parentId) {
+                    currentReceipts = currentReceipts.map(r => {
+                        if (r.id !== newId && r.vendor === formData.vendor && r.status === "שולם" && !r.parentId) {
+                            return { ...r, parentId: newId };
+                        }
+                        return r;
+                    });
+                }
+
+                setReceipts(currentReceipts);
                 setFormData({ amount: '', vendor: '', category: categoriesList[0], quarter: QUARTERS[0], month: QUARTER_MONTHS[QUARTERS[0]][0], status: "שולם", parentId: null });
                 setIsAdding(false);
-                updateFirestore(budgets, updatedReceipts);
+                updateFirestore(budgets, currentReceipts);
             };
 
             const openSubRowForm = (parent) => {
@@ -335,8 +344,11 @@
             };
 
             const deleteReceipt = (id) => {
-                if(window.confirm("למחוק נתון זה?")) {
+                if(window.confirm("למחוק נתון זה? במידה וזה שריון, כל התשלומים המקושרים יימחקו גם כן.")) {
+                    // מוחק גם את השורה עצמה וגם ילדים (תשלומים שקושרו לשריון זה)
                     const updatedReceipts = receipts.filter(r => r.id !== id && r.parentId !== id);
+                    
+                    // רשות: שחרור תשלומים יתומים במקום מחיקתם (לפי הלוגיקה שבחרנו, אנחנו מוחקים קומפלט, אבל ניתן לשנות)
                     setReceipts(updatedReceipts);
                     updateFirestore(budgets, updatedReceipts);
                 }
