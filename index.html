@@ -115,8 +115,6 @@
             const [filterCategory, setFilterCategory] = useState("הכל");
             const [filterMonth, setFilterMonth] = useState("הכל");
             const [filterQuarter, setFilterQuarter] = useState("הכל");
-            
-            const [activeTab, setActiveTab] = useState('paid');
 
             const [newCategoryName, setNewCategoryName] = useState("");
             const [editingCategoryKey, setEditingCategoryKey] = useState(null);
@@ -264,25 +262,24 @@
                 return map;
             }, [receipts]);
 
-            const filteredReceipts = useMemo(() => {
-                return receipts.filter(r => {
+            const sortedReceiptsDisplay = useMemo(() => {
+                const filtered = receipts.filter(r => {
                     const vendorMatch = (r.vendor || "").toLowerCase().includes((filterVendor || "").toLowerCase());
                     const categoryMatch = filterCategory === "הכל" || r.category === filterCategory;
                     const monthMatch = filterMonth === "הכל" || r.month === filterMonth;
                     const quarterMatch = filterQuarter === "הכל" || r.quarter === filterQuarter;
                     return vendorMatch && categoryMatch && monthMatch && quarterMatch;
                 });
+
+                const parents = filtered.filter(r => !r.parentId);
+                const result = [];
+                parents.forEach(parent => {
+                    result.push(parent);
+                    const children = filtered.filter(r => r.parentId === parent.id);
+                    children.forEach(child => result.push(child));
+                });
+                return result;
             }, [receipts, filterVendor, filterCategory, filterMonth, filterQuarter]);
-
-            const paidReceiptsDisplay = useMemo(() => {
-                return filteredReceipts.filter(r => r.status === "שולם");
-            }, [filteredReceipts]);
-
-            const reservedReceiptsDisplay = useMemo(() => {
-                return filteredReceipts.filter(r => r.status === "משוריין");
-            }, [filteredReceipts]);
-
-            const activeTableData = activeTab === 'paid' ? paidReceiptsDisplay : reservedReceiptsDisplay;
 
             const handleUpdateBudget = (category, amount) => {
                 setBudgets(prev => ({ ...prev, [category]: Number(amount) }));
@@ -372,7 +369,6 @@
                 updateFirestore(budgets, newList);
             };
 
-            // מנגנון הייבוא החכם החדש - יודע לספור כפילויות מאושרות ולהשלים פערים
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -390,7 +386,6 @@
                         let currentReceipts = [...receipts];
                         let globalIndex = 0;
                         
-                        // יצירת "ספירת מלאי" של החשבוניות שכבר קיימות בענן
                         const dbCounts = {};
                         currentReceipts.forEach(r => {
                             const sig = `${(r.vendor||"").trim()}-${r.amount}-${r.month}-${r.status}-${r.category}`;
@@ -420,12 +415,9 @@
 
                                 const signature = `${vendor}-${amount}-${month}-${status}-${category}`;
                                 
-                                // בדיקה האם הנתון כבר קיים המערכת מספיק פעמים
                                 if (dbCounts[signature] > 0) {
-                                    // קיים! אנחנו מורידים את הספירה ולא מייבאים מחדש
                                     dbCounts[signature]--;
                                 } else {
-                                    // הנתון חסר במערכת, נוסיף אותו
                                     newItems.push({
                                         id: Date.now() + globalIndex++, 
                                         vendor,
@@ -629,7 +621,7 @@
                                     <div className="p-2.5 bg-emerald-500/20 rounded-xl text-emerald-400 shadow-lg">
                                         <Receipt size={24} />
                                     </div>
-                                    <h3 className="text-2xl font-black text-white tracking-tight">פירוט עסקאות</h3>
+                                    <h3 className="text-2xl font-black text-white tracking-tight">פוטנציאל תשלומים/תשלומים בפועל</h3>
                                 </div>
                                 
                                 <div className="flex flex-wrap items-center gap-4 w-full border-t border-white/5 pt-4">
@@ -652,21 +644,6 @@
                                 </div>
                             </div>
 
-                            <div className="flex gap-2 border-b border-white/5 mb-2 px-4 md:px-8 mt-2 overflow-x-auto custom-scrollbar">
-                                <button
-                                    onClick={() => setActiveTab('paid')}
-                                    className={`px-6 py-4 font-black text-lg border-b-2 transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'paid' ? 'border-emerald-400 text-emerald-400 bg-emerald-400/5' : 'border-transparent text-slate-500 hover:text-white hover:bg-white/5'} rounded-t-xl`}
-                                >
-                                    <CreditCard size={20}/> תשלומים שבוצעו ({paidReceiptsDisplay.length})
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('reserved')}
-                                    className={`px-6 py-4 font-black text-lg border-b-2 transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'reserved' ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' : 'border-transparent text-slate-500 hover:text-white hover:bg-white/5'} rounded-t-xl`}
-                                >
-                                    <Lock size={20}/> שריונות תקציב ({reservedReceiptsDisplay.length})
-                                </button>
-                            </div>
-
                             <div className="overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-right border-collapse">
                                     <thead>
@@ -680,35 +657,36 @@
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
-                                        {activeTableData.length === 0 ? (
-                                            <tr><td colSpan="6" className="p-24 text-center text-slate-500 font-bold text-lg italic opacity-40">
-                                                {activeTab === 'paid' ? 'לא נמצאו תשלומים בפועל התואמים לסינון.' : 'לא נמצאו שריונות תקציב התואמים לסינון.'}
-                                            </td></tr>
+                                        {sortedReceiptsDisplay.length === 0 ? (
+                                            <tr><td colSpan="6" className="p-24 text-center text-slate-500 font-bold text-lg italic opacity-40">לא נמצאו נתונים התואמות לחיפוש.</td></tr>
                                         ) : (
-                                            activeTableData.map(receipt => {
+                                            sortedReceiptsDisplay.map(receipt => {
                                                 const childrenSum = rowOverageMap[receipt.id] || 0;
                                                 const isReservedWithOverage = receipt.status === 'משוריין' && !receipt.parentId && childrenSum > receipt.amount;
                                                 const remainingAmount = receipt.amount - childrenSum;
 
                                                 return (
-                                                    <tr key={receipt.id} className={`hover:bg-white/[0.03] transition-all group border-b border-white/[0.01]`}>
+                                                    <tr key={receipt.id} className={`hover:bg-white/[0.03] transition-all group border-b border-white/[0.01] ${receipt.parentId ? 'bg-white/[0.015]' : ''}`}>
                                                         <td className="p-6">
                                                             {editingId === receipt.id ? (
                                                                 <input className="bg-slate-800 border border-cyan-500/50 rounded-xl px-4 py-2 w-full text-white outline-none font-bold shadow-inner" value={formData.vendor} onChange={(e) => setFormData({...formData, vendor: e.target.value})} list="vendors-list" />
                                                             ) : (
-                                                                <div className="flex flex-col">
-                                                                    <span className="font-black text-white text-lg tracking-tight group-hover:text-cyan-400 transition-colors leading-tight flex items-center gap-2">
-                                                                        {receipt.vendor}
-                                                                        {isReservedWithOverage && <AlertCircle size={16} className="text-rose-500 animate-bounce" />}
-                                                                    </span>
-                                                                    <span className="text-[10px] text-slate-600 font-bold mt-1 opacity-60 flex items-center gap-2">
-                                                                        ID: #{String(receipt.id || '0000').slice(-4)}
-                                                                    </span>
-                                                                    {activeTab === 'paid' && receipt.parentId && (
-                                                                        <span className="text-[10px] text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded-md border border-yellow-500/20 mt-1.5 w-fit flex items-center gap-1 font-bold">
-                                                                            <Lock size={10}/> מתוך שריון
+                                                                <div className={`flex items-center gap-3 ${receipt.parentId ? 'mr-10' : ''}`}>
+                                                                    {receipt.parentId && <CornerDownLeft size={16} className="text-slate-600" />}
+                                                                    <div className="flex flex-col">
+                                                                        <span className="font-black text-white text-lg tracking-tight group-hover:text-cyan-400 transition-colors leading-tight flex items-center gap-2">
+                                                                            {receipt.vendor}
+                                                                            {isReservedWithOverage && <AlertCircle size={16} className="text-rose-500 animate-bounce" />}
                                                                         </span>
-                                                                    )}
+                                                                        <span className="text-[10px] text-slate-600 font-bold mt-1 opacity-60 flex items-center gap-2">
+                                                                            ID: #{String(receipt.id || '0000').slice(-4)}
+                                                                        </span>
+                                                                        {receipt.parentId && receipt.status === 'שולם' && (
+                                                                            <span className="text-[10px] text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded-md border border-yellow-500/20 mt-1.5 w-fit flex items-center gap-1 font-bold">
+                                                                                <Lock size={10}/> מתוך שריון
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             )}
                                                         </td>
@@ -744,7 +722,7 @@
                                                             ) : (
                                                                 <div className="flex flex-col items-end justify-center">
                                                                     <span className="text-xl tracking-tighter">₪{Number(receipt.amount || 0).toLocaleString()}</span>
-                                                                    {activeTab === 'reserved' && !receipt.parentId && receipt.status === 'משוריין' && (
+                                                                    {!receipt.parentId && receipt.status === 'משוריין' && (
                                                                         <span className={`text-[11px] mt-1 px-2 py-0.5 rounded-md font-bold shadow-sm ${remainingAmount < 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
                                                                             {remainingAmount < 0 
                                                                                 ? `חריגה: ₪${Math.abs(remainingAmount).toLocaleString()}` 
@@ -768,7 +746,7 @@
                                                                     </>
                                                                 ) : (
                                                                     <>
-                                                                        {activeTab === 'reserved' && !receipt.parentId && receipt.status === 'משוריין' && (
+                                                                        {!receipt.parentId && receipt.status === 'משוריין' && (
                                                                             <button onClick={() => openSubRowForm(receipt)} title="הוסף תשלום מהשריון" className="p-2.5 text-emerald-400 hover:bg-emerald-400/10 rounded-xl transition-all"><Plus size={20} /></button>
                                                                         )}
                                                                         <button onClick={() => startEditing(receipt)} className="p-2.5 text-slate-400 hover:text-cyan-400 hover:bg-cyan-400/10 rounded-xl transition-all shadow-lg"><Edit3 size={20} /></button>
@@ -845,6 +823,56 @@
                                     </div>
                                 </div>
                                 <button onClick={handleSaveSettings} className="w-full bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-xl mt-10 transition-all text-lg border border-white/10 shadow-2xl">סיום ועדכון נתונים</button>
+                            </div>
+                        </section>
+                    )}
+
+                    {isAdding && (
+                        <section className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+                            <datalist id="vendors-list">
+                                {existingVendors.map(vendor => (
+                                    <option key={vendor} value={vendor} />
+                                ))}
+                            </datalist>
+
+                            <div className="bg-slate-900 border border-white/20 p-8 rounded-[2.5rem] w-full max-w-xl shadow-2xl animate-in zoom-in border-t-white/10">
+                                <div className="flex justify-between items-center mb-8"><h2 className="text-2xl font-black text-white flex items-center gap-3"><div className="p-2 bg-cyan-500/20 rounded-xl"><PlusCircle className="text-cyan-400" /></div> {formData.parentId ? 'הוספת תשלום מתוך שריון' : 'הוספת נתון חדש'}</h2><button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-white p-2 hover:bg-white/10 rounded-full"><X /></button></div>
+                                <form onSubmit={handleAddReceipt} className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">ספק</label>
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold shadow-inner" 
+                                                value={formData.vendor} 
+                                                onChange={(e) => setFormData({...formData, vendor: e.target.value})} 
+                                                list="vendors-list" 
+                                                placeholder="הקלד שם ספק..."
+                                            />
+                                        </div>
+                                        <div className="space-y-2"><label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">סכום (₪)</label><input type="number" required className="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold shadow-inner" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} /></div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2"><label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">קטגוריה משויכת</label><select className="w-full bg-slate-800 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold cursor-pointer shadow-inner disabled:opacity-50" disabled={!!formData.parentId} value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})}>{categoriesList.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">סטטוס תשלום</label>
+                                            <div className="grid grid-cols-2 gap-2 bg-white/5 p-1 rounded-xl border border-white/5 h-[58px]">
+                                                <button type="button" disabled={!!formData.parentId} onClick={() => setFormData({...formData, status: "שולם"})} className={`rounded-lg font-black text-xs transition-all ${formData.status === 'שולם' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'} disabled:opacity-50`}>שולם</button>
+                                                <button type="button" disabled={!!formData.parentId} onClick={() => setFormData({...formData, status: "משוריין"})} className={`rounded-lg font-black text-xs transition-all ${formData.status === 'משוריין' ? 'bg-yellow-500 text-slate-950' : 'text-slate-400 hover:text-white'} disabled:opacity-50`}>משוריין</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2"><label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">רבעון</label><select className="w-full bg-slate-800 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold cursor-pointer shadow-inner disabled:opacity-50" disabled={!!formData.parentId} value={formData.quarter} onChange={(e) => setFormData({...formData, quarter: e.target.value})}>{QUARTERS.map(q => <option key={q} value={q}>{q}</option>)}</select></div>
+                                        <div className="space-y-2"><label className="text-sm font-black text-slate-500 mr-2 uppercase tracking-wide">חודש</label><select className="w-full bg-slate-800 border border-white/10 rounded-xl p-4 focus:border-cyan-500 outline-none text-white font-bold cursor-pointer shadow-inner disabled:opacity-50" disabled={!!formData.parentId} value={formData.month} onChange={(e) => setFormData({...formData, month: e.target.value})}>{(QUARTER_MONTHS[formData.quarter] || []).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                                    </div>
+                                    <button type="submit" disabled={categoriesList.length === 0} className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black py-5 rounded-2xl mt-4 active:scale-95 disabled:opacity-30 text-xl tracking-tight shadow-xl shadow-cyan-500/20 transition-all leading-none">
+                                        {formData.parentId ? 'אישור משיכה מהשריון' : 'שמירת נתון למערכת'}
+                                    </button>
+                                </form>
                             </div>
                         </section>
                     )}
