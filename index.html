@@ -6,9 +6,11 @@
     <title>דשבורד תקציב למידה - נת"ע</title>
     
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <script type="importmap">
@@ -382,17 +384,15 @@
                         let addedCount = 0;
                         let currentReceipts = [...receipts];
                         
-                        // יצירת חותמת לזיהוי כפילויות (כדי לא לייבא שורות שכבר קיימות)
                         const existingSignatures = new Set(
                             currentReceipts.map(r => `${(r.vendor||"").trim()}-${r.amount}-${r.month}-${r.status}-${r.category}`)
                         );
 
-                        // פונקציית עזר למציאת הרבעון מתוך החודש
                         const getQuarter = (month) => {
                             for (const [q, months] of Object.entries(QUARTER_MONTHS)) {
                                 if (months.includes(month)) return q;
                             }
-                            return "Q1"; // ברירת מחדל
+                            return "Q1"; 
                         };
 
                         const newItems = [];
@@ -405,13 +405,12 @@
                             const status = (row['סטטוס'] || "שולם").trim();
                             const month = (row['חודש'] || "").trim();
                             
-                            // דילוג על שורות ריקות או חסרות נתוני חובה
                             if (!vendor || !amount || !category) return; 
 
                             const signature = `${vendor}-${amount}-${month}-${status}-${category}`;
                             if (!existingSignatures.has(signature)) {
                                 newItems.push({
-                                    id: Date.now() + index, // מזהה ייחודי ובטוח
+                                    id: Date.now() + index, 
                                     vendor,
                                     amount,
                                     category,
@@ -435,7 +434,6 @@
                             setImportMessage("לא נמצאו נתונים חדשים (כל השורות בקובץ כבר קיימות במערכת).");
                         }
                         
-                        // איפוס ההודעה והאינפוט אחרי כמה שניות
                         setTimeout(() => setImportMessage(""), 7000);
                         e.target.value = null;
                     },
@@ -689,7 +687,17 @@
                                                             )}
                                                         </td>
                                                         <td className="p-6 text-center">
-                                                            <span className="px-4 py-1.5 rounded-full text-[11px] font-black shadow-sm inline-block border backdrop-blur-md" style={{ backgroundColor: `${categoryColorMap[receipt.category]}15`, color: categoryColorMap[receipt.category], borderColor: `${categoryColorMap[receipt.category]}30` }}>{receipt.category}</span>
+                                                            {editingId === receipt.id ? (
+                                                                <select 
+                                                                    className="bg-slate-800 border border-cyan-500/50 rounded-xl px-2 py-2 text-xs text-white outline-none font-bold max-w-[150px]" 
+                                                                    value={formData.category} 
+                                                                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                                                                >
+                                                                    {categoriesList.map(c => <option key={c} value={c}>{c}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <span className="px-4 py-1.5 rounded-full text-[11px] font-black shadow-sm inline-block border backdrop-blur-md" style={{ backgroundColor: `${categoryColorMap[receipt.category]}15`, color: categoryColorMap[receipt.category], borderColor: `${categoryColorMap[receipt.category]}30` }}>{receipt.category}</span>
+                                                            )}
                                                         </td>
                                                         <td className={`p-6 font-black text-right ${isReservedWithOverage ? 'text-rose-500' : (receipt.status === 'שולם' ? 'text-white' : 'text-yellow-400')}`}>
                                                             {editingId === receipt.id ? (
