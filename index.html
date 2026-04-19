@@ -6,7 +6,9 @@
     <title>דשבורד תקציב למידה - נת"ע</title>
     
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="importmap">
@@ -74,18 +76,14 @@
         const db = getFirestore(app);
         const DOC_REF = doc(db, 'dashboardData', 'main'); 
 
-        // מנוע סנכרון אוטומטי - סורק את כל המסד ומשדך תשלומים יתומים לשריונים תואמים
         const enforceLinking = (receiptsArray) => {
             let newList = [...receiptsArray];
             let hasChanges = false;
             
-            // מציאת כל השריונים הראשיים
             const reservations = newList.filter(r => r.status === "משוריין" && !r.parentId);
             
             newList = newList.map(receipt => {
-                // אם מצאנו חשבונית "שולם" שאינה משויכת לאף שריון
                 if (receipt.status === "שולם" && !receipt.parentId) {
-                    // נחפש שריון ראשי עם שם ספק זהה (תוך ניקוי רווחים מיותרים משני הצדדים למניעת שגיאות)
                     const matchingRes = reservations.find(res => 
                         (res.vendor || "").trim() === (receipt.vendor || "").trim()
                     );
@@ -131,12 +129,10 @@
                             id: r.id || Date.now() + i
                         }));
                         
-                        // הפעלת סנכרון רטרואקטיבי על הנתונים שנמשכו מהענן
                         const { newList, hasChanges } = enforceLinking(safeReceipts);
                         
                         setReceipts(newList);
                         
-                        // אם המערכת ביצעה שידוך אוטומטי, היא תשמור מיד את התיקון בחזרה ל-Firebase
                         if (hasChanges) {
                             setDoc(DOC_REF, { budgets: data.budgets || INITIAL_BUDGETS, receipts: newList }, { merge: true });
                         }
@@ -329,7 +325,6 @@
                 
                 let currentReceipts = [newReceipt, ...receipts];
                 
-                // הפעלת סנכרון חכם גם בעת הוספה - מחבר שולמים ושריונים תואמים
                 const { newList } = enforceLinking(currentReceipts);
 
                 setReceipts(newList);
@@ -364,7 +359,6 @@
             const saveEdit = () => {
                 const updatedReceipts = receipts.map(r => r.id === editingId ? { ...formData, amount: Number(formData.amount), vendor: formData.vendor.trim() } : r);
                 
-                // סנכרון אוטומטי גם אחרי עריכה (במקרה ששם הספק תוקן לדוגמה)
                 const { newList } = enforceLinking(updatedReceipts);
                 
                 setReceipts(newList);
@@ -579,7 +573,9 @@
                                             <tr><td colSpan="6" className="p-24 text-center text-slate-500 font-bold text-lg italic opacity-40">לא נמצאו נתונים התואמות לחיפוש.</td></tr>
                                         ) : (
                                             sortedReceiptsDisplay.map(receipt => {
-                                                const isReservedWithOverage = receipt.status === 'משוריין' && !receipt.parentId && (rowOverageMap[receipt.id] || 0) > receipt.amount;
+                                                const childrenSum = rowOverageMap[receipt.id] || 0;
+                                                const isReservedWithOverage = receipt.status === 'משוריין' && !receipt.parentId && childrenSum > receipt.amount;
+                                                const remainingAmount = receipt.amount - childrenSum;
 
                                                 return (
                                                     <tr key={receipt.id} className={`hover:bg-white/[0.03] transition-all group border-b border-white/[0.01] ${receipt.parentId ? 'bg-white/[0.015]' : ''}`}>
@@ -615,11 +611,18 @@
                                                         <td className="p-6 text-center">
                                                             <span className="px-4 py-1.5 rounded-full text-[11px] font-black shadow-sm inline-block border backdrop-blur-md" style={{ backgroundColor: `${categoryColorMap[receipt.category]}15`, color: categoryColorMap[receipt.category], borderColor: `${categoryColorMap[receipt.category]}30` }}>{receipt.category}</span>
                                                         </td>
-                                                        <td className={`p-6 font-black text-right ${isReservedWithOverage ? 'text-rose-500' : 'text-yellow-400'}`}>
+                                                        <td className={`p-6 font-black text-right ${isReservedWithOverage ? 'text-rose-500' : (receipt.status === 'שולם' ? 'text-white' : 'text-yellow-400')}`}>
                                                             {editingId === receipt.id ? (
                                                                 <input type="number" className="bg-slate-800 border border-cyan-500/50 rounded-xl px-3 py-2 w-32 text-white outline-none text-left font-black" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} />
                                                             ) : (
-                                                                <span className="text-xl tracking-tighter">₪{Number(receipt.amount || 0).toLocaleString()}</span>
+                                                                <div className="flex flex-col items-end justify-center">
+                                                                    <span className="text-xl tracking-tighter">₪{Number(receipt.amount || 0).toLocaleString()}</span>
+                                                                    {!receipt.parentId && receipt.status === 'משוריין' && (
+                                                                        <span className={`text-[11px] mt-1 px-2 py-0.5 rounded-md font-bold shadow-sm ${remainingAmount < 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                                                                            נותר למימוש: ₪{remainingAmount.toLocaleString()}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </td>
                                                         <td className="p-6 text-center">
