@@ -31,7 +31,7 @@
         import { createRoot } from 'react-dom/client';
         import * as Lucide from 'lucide-react';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const { 
             PlusCircle, TrendingUp, Wallet, PieChart, BarChart3, Receipt, 
@@ -120,32 +120,55 @@
             const [editingCategoryKey, setEditingCategoryKey] = useState(null);
             const [tempCategoryName, setTempCategoryName] = useState("");
 
+            // אתחול בטוח המונע דריסת נתונים
             useEffect(() => {
-                const unsubscribe = onSnapshot(DOC_REF, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        setBudgets(data.budgets || INITIAL_BUDGETS);
-                        
-                        const fetchedReceipts = data.receipts || [];
-                        const safeReceipts = fetchedReceipts.map((r, i) => ({
-                            ...r,
-                            id: r.id || Date.now() + i
-                        }));
-                        
-                        const { newList, hasChanges } = enforceLinking(safeReceipts);
-                        
-                        setReceipts(newList);
-                        
-                        if (hasChanges) {
-                            setDoc(DOC_REF, { budgets: data.budgets || INITIAL_BUDGETS, receipts: newList }, { merge: true });
+                const initializeData = async () => {
+                    try {
+                        const docSnap = await getDoc(DOC_REF);
+                        if (!docSnap.exists()) {
+                            // רק אם המסמך לא קיים בכלל בענן (פעם ראשונה בלבד), נשתמש בנתונים ריקים
+                            await setDoc(DOC_REF, { budgets: INITIAL_BUDGETS, receipts: INITIAL_RECEIPTS });
                         }
-                        
-                    } else {
-                        setDoc(DOC_REF, { budgets: INITIAL_BUDGETS, receipts: INITIAL_RECEIPTS });
+                    } catch (error) {
+                        console.error("Error checking document existence:", error);
                     }
-                    setIsLoaded(true);
-                });
-                return () => unsubscribe();
+
+                    // לאחר שווידאנו קיום (או יצרנו), נאזין לשינויים
+                    const unsubscribe = onSnapshot(DOC_REF, (docSnap) => {
+                        if (docSnap.exists()) {
+                            const data = docSnap.data();
+                            
+                            // אם הנתונים מהענן קיימים, נטען אותם גם אם הם ריקים כרגע (אבל לא נדרוס יזמית)
+                            if(data.budgets) setBudgets(data.budgets);
+                            
+                            const fetchedReceipts = data.receipts || [];
+                            const safeReceipts = fetchedReceipts.map((r, i) => ({
+                                ...r,
+                                id: r.id || Date.now() + i
+                            }));
+                            
+                            const { newList, hasChanges } = enforceLinking(safeReceipts);
+                            
+                            setReceipts(newList);
+                            
+                            // אם מנגנון השידוך זיהה שינויים, נעדכן את הענן
+                            if (hasChanges) {
+                                setDoc(DOC_REF, { budgets: data.budgets || INITIAL_BUDGETS, receipts: newList }, { merge: true });
+                            }
+                        }
+                        setIsLoaded(true);
+                    }, (error) => {
+                        console.error("Error listening to document:", error);
+                        setIsLoaded(true); // עולה בכל זאת כדי לא להיתקע במסך טעינה
+                    });
+
+                    return unsubscribe;
+                };
+
+                const unsubscribePromise = initializeData();
+                return () => {
+                    unsubscribePromise.then(unsub => { if(unsub) unsub(); });
+                };
             }, []);
 
             const updateFirestore = (newBudgets, newReceipts) => {
@@ -678,14 +701,7 @@
                                                                             {receipt.vendor}
                                                                             {isReservedWithOverage && <AlertCircle size={16} className="text-rose-500 animate-bounce" />}
                                                                         </span>
-                                                                        <span className="text-[10px] text-slate-600 font-bold mt-1 opacity-60 flex items-center gap-2">
-                                                                            ID: #{String(receipt.id || '0000').slice(-4)}
-                                                                        </span>
-                                                                        {receipt.parentId && receipt.status === 'שולם' && (
-                                                                            <span className="text-[10px] text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded-md border border-yellow-500/20 mt-1.5 w-fit flex items-center gap-1 font-bold">
-                                                                                <Lock size={10}/> מתוך שריון
-                                                                            </span>
-                                                                        )}
+                                                                        <span className="text-[10px] text-slate-600 font-bold mt-1 opacity-60">ID: #{String(receipt.id || '0000').slice(-4)}</span>
                                                                     </div>
                                                                 </div>
                                                             )}
