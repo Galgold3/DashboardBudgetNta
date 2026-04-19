@@ -11,7 +11,7 @@
     
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script type="importmap">
     {
@@ -369,20 +369,23 @@
                 updateFirestore(budgets, newList);
             };
 
-            // פונקציית ייבוא ה-CSV
+            // פונקציית ייבוא מאקסל (.xlsx) התומכת במספר לשוניות
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 
-                setImportMessage("קורא נתונים מהקובץ...");
+                setImportMessage("קורא נתונים מקובץ האקסל...");
                 
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function(results) {
-                        const data = results.data;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = window.XLSX.read(data, { type: 'array' });
+                        
+                        let newItems = [];
                         let addedCount = 0;
                         let currentReceipts = [...receipts];
+                        let globalIndex = 0;
                         
                         const existingSignatures = new Set(
                             currentReceipts.map(r => `${(r.vendor||"").trim()}-${r.amount}-${r.month}-${r.status}-${r.category}`)
@@ -395,33 +398,36 @@
                             return "Q1"; 
                         };
 
-                        const newItems = [];
-                        
-                        data.forEach((row, index) => {
-                            const vendor = (row['ספק'] || "").trim();
-                            const rawAmount = String(row['סכום'] || "").replace(/[^0-9.-]+/g, "");
-                            const amount = Number(rawAmount);
-                            const category = (row['קטגוריה'] || "").trim();
-                            const status = (row['סטטוס'] || "שולם").trim();
-                            const month = (row['חודש'] || "").trim();
+                        workbook.SheetNames.forEach(sheetName => {
+                            const sheet = workbook.Sheets[sheetName];
+                            const rows = window.XLSX.utils.sheet_to_json(sheet);
                             
-                            if (!vendor || !amount || !category) return; 
+                            rows.forEach((row) => {
+                                const vendor = (row['ספק'] || "").trim();
+                                const rawAmount = String(row['סכום'] || "").replace(/[^0-9.-]+/g, "");
+                                const amount = Number(rawAmount);
+                                const category = (row['קטגוריה'] || "").trim();
+                                const status = (row['סטטוס'] || "שולם").trim();
+                                const month = (row['חודש'] || "").trim();
+                                
+                                if (!vendor || !amount || !category) return; 
 
-                            const signature = `${vendor}-${amount}-${month}-${status}-${category}`;
-                            if (!existingSignatures.has(signature)) {
-                                newItems.push({
-                                    id: Date.now() + index, 
-                                    vendor,
-                                    amount,
-                                    category,
-                                    status,
-                                    month,
-                                    quarter: getQuarter(month),
-                                    parentId: null
-                                });
-                                existingSignatures.add(signature);
-                                addedCount++;
-                            }
+                                const signature = `${vendor}-${amount}-${month}-${status}-${category}`;
+                                if (!existingSignatures.has(signature)) {
+                                    newItems.push({
+                                        id: Date.now() + globalIndex++, 
+                                        vendor,
+                                        amount,
+                                        category,
+                                        status,
+                                        month,
+                                        quarter: getQuarter(month),
+                                        parentId: null
+                                    });
+                                    existingSignatures.add(signature);
+                                    addedCount++;
+                                }
+                            });
                         });
 
                         if (addedCount > 0) {
@@ -429,19 +435,20 @@
                             const { newList } = enforceLinking(merged);
                             setReceipts(newList);
                             updateFirestore(budgets, newList);
-                            setImportMessage(`הצלחה! יובאו ${addedCount} נתונים חדשים ושויכו אוטומטית.`);
+                            setImportMessage(`הצלחה! יובאו ${addedCount} נתונים חדשים מתוך האקסל ושויכו אוטומטית.`);
                         } else {
-                            setImportMessage("לא נמצאו נתונים חדשים (כל השורות בקובץ כבר קיימות במערכת).");
+                            setImportMessage("לא נמצאו נתונים חדשים (כל השורות באקסל כבר קיימות במערכת).");
                         }
                         
                         setTimeout(() => setImportMessage(""), 7000);
                         e.target.value = null;
-                    },
-                    error: function(error) {
-                        setImportMessage("שגיאה בקריאת הקובץ. ודאו שזהו קובץ CSV תקין.");
-                        console.error("CSV Parse Error:", error);
+                        
+                    } catch (error) {
+                        setImportMessage("שגיאה בקריאת הקובץ. ודאו שזהו קובץ אקסל תקין.");
+                        console.error("Excel Parse Error:", error);
                     }
-                });
+                };
+                reader.readAsArrayBuffer(file);
             };
 
             if (!isLoaded) {
@@ -757,16 +764,16 @@
                                 </div>
                                 
                                 <div className="space-y-8">
-                                    {/* ייבוא מקובץ CSV */}
+                                    {/* ייבוא מקובץ אקסל - מעודכן */}
                                     <div className="bg-white/5 border border-white/10 rounded-3xl p-6 relative overflow-hidden">
                                         <div className="absolute top-0 right-0 p-4 opacity-5"><UploadCloud size={100} className="text-cyan-400" /></div>
-                                        <h3 className="text-lg font-black text-cyan-400 mb-2 flex items-center gap-2 relative z-10"><UploadCloud size={20} /> ייבוא מקובץ CSV</h3>
+                                        <h3 className="text-lg font-black text-cyan-400 mb-2 flex items-center gap-2 relative z-10"><UploadCloud size={20} /> ייבוא נתונים מאקסל</h3>
                                         <p className="text-sm text-slate-400 mb-4 relative z-10">
-                                            העלו קובץ CSV הכולל עמודות: <strong>ספק, סכום, קטגוריה, סטטוס, חודש</strong>.<br/>
-                                            <span className="text-xs opacity-70">המערכת יודעת לדלג אוטומטית על שורות שכבר קיימות במסד הנתונים כדי למנוע כפילויות.</span>
+                                            העלו קובץ Excel (.xlsx) הכולל עמודות: <strong>ספק, סכום, קטגוריה, סטטוס, חודש</strong>.<br/>
+                                            <span className="text-xs opacity-70">ניתן להעלות קובץ עם מספר לשוניות, המערכת תסרוק את כולן ותדלג על נתונים שכבר קיימים.</span>
                                         </p>
                                         <div className="relative z-10 flex items-center gap-4">
-                                            <input type="file" accept=".csv" onChange={handleFileUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-black file:bg-cyan-500/20 file:text-cyan-400 hover:file:bg-cyan-500/30 transition-all cursor-pointer" />
+                                            <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-black file:bg-cyan-500/20 file:text-cyan-400 hover:file:bg-cyan-500/30 transition-all cursor-pointer" />
                                         </div>
                                         {importMessage && (
                                             <div className="mt-4 text-sm font-bold bg-slate-950/50 text-white p-3 rounded-xl border border-white/10 inline-block relative z-10 animate-in fade-in">
