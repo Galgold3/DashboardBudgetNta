@@ -38,6 +38,7 @@
             ShieldCheck, Lock, CreditCard, ChevronDown, CornerDownLeft 
         } = Lucide;
 
+        // מבנה בסיס לתקציבים
         const INITIAL_BUDGETS = {
             "הדרכות פנים ארגוניות": 500000,
             "כנס סיכום שנה": 350000,
@@ -619,7 +620,9 @@
                                                                     <span className="text-xl tracking-tighter">₪{Number(receipt.amount || 0).toLocaleString()}</span>
                                                                     {!receipt.parentId && receipt.status === 'משוריין' && (
                                                                         <span className={`text-[11px] mt-1 px-2 py-0.5 rounded-md font-bold shadow-sm ${remainingAmount < 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                                                                            נותר למימוש: ₪{remainingAmount.toLocaleString()}
+                                                                            {remainingAmount < 0 
+                                                                                ? `חריגה: ₪${Math.abs(remainingAmount).toLocaleString()}` 
+                                                                                : `נותר למימוש: ₪${remainingAmount.toLocaleString()}`}
                                                                         </span>
                                                                     )}
                                                                 </div>
