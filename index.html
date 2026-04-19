@@ -6,9 +6,7 @@
     <title>דשבורד תקציב למידה - נת"ע</title>
     
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-    
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="importmap">
@@ -38,7 +36,6 @@
             ShieldCheck, Lock, CreditCard, ChevronDown, CornerDownLeft 
         } = Lucide;
 
-        // מבנה בסיס לתקציבים
         const INITIAL_BUDGETS = {
             "הדרכות פנים ארגוניות": 500000,
             "כנס סיכום שנה": 350000,
@@ -77,6 +74,33 @@
         const db = getFirestore(app);
         const DOC_REF = doc(db, 'dashboardData', 'main'); 
 
+        // מנוע סנכרון אוטומטי - סורק את כל המסד ומשדך תשלומים יתומים לשריונים תואמים
+        const enforceLinking = (receiptsArray) => {
+            let newList = [...receiptsArray];
+            let hasChanges = false;
+            
+            // מציאת כל השריונים הראשיים
+            const reservations = newList.filter(r => r.status === "משוריין" && !r.parentId);
+            
+            newList = newList.map(receipt => {
+                // אם מצאנו חשבונית "שולם" שאינה משויכת לאף שריון
+                if (receipt.status === "שולם" && !receipt.parentId) {
+                    // נחפש שריון ראשי עם שם ספק זהה (תוך ניקוי רווחים מיותרים משני הצדדים למניעת שגיאות)
+                    const matchingRes = reservations.find(res => 
+                        (res.vendor || "").trim() === (receipt.vendor || "").trim()
+                    );
+                    
+                    if (matchingRes) {
+                        hasChanges = true;
+                        return { ...receipt, parentId: matchingRes.id };
+                    }
+                }
+                return receipt;
+            });
+            
+            return { newList, hasChanges };
+        };
+
         const App = () => {
             const [receipts, setReceipts] = useState(INITIAL_RECEIPTS);
             const [budgets, setBudgets] = useState(INITIAL_BUDGETS);
@@ -107,7 +131,16 @@
                             id: r.id || Date.now() + i
                         }));
                         
-                        setReceipts(safeReceipts);
+                        // הפעלת סנכרון רטרואקטיבי על הנתונים שנמשכו מהענן
+                        const { newList, hasChanges } = enforceLinking(safeReceipts);
+                        
+                        setReceipts(newList);
+                        
+                        // אם המערכת ביצעה שידוך אוטומטי, היא תשמור מיד את התיקון בחזרה ל-Firebase
+                        if (hasChanges) {
+                            setDoc(DOC_REF, { budgets: data.budgets || INITIAL_BUDGETS, receipts: newList }, { merge: true });
+                        }
+                        
                     } else {
                         setDoc(DOC_REF, { budgets: INITIAL_BUDGETS, receipts: INITIAL_RECEIPTS });
                     }
@@ -125,7 +158,7 @@
             const existingVendors = useMemo(() => {
                 const vendors = receipts
                     .filter(r => r.parentId === null && r.vendor)
-                    .map(r => r.vendor);
+                    .map(r => r.vendor.trim());
                 return Array.from(new Set(vendors)).sort();
             }, [receipts]);
 
@@ -288,52 +321,27 @@
                 e.preventDefault();
                 if (!formData.amount || !formData.vendor || !formData.category) return;
                 
-                let finalParentId = formData.parentId;
-                const newId = Date.now();
-                let currentReceipts = [...receipts];
-                
-                // לוגיקת קינון: הוספת 'שולם' למשוריין קיים
-                if (!finalParentId && formData.status === "שולם") {
-                    const existingReserved = currentReceipts.find(r => 
-                        r.vendor === formData.vendor && 
-                        r.status === "משוריין" && 
-                        !r.parentId
-                    );
-                    
-                    if (existingReserved) {
-                        finalParentId = existingReserved.id;
-                    }
-                }
-
                 const newReceipt = { 
                     ...formData, 
-                    id: newId, 
-                    amount: Number(formData.amount),
-                    parentId: finalParentId 
+                    id: Date.now(), 
+                    amount: Number(formData.amount)
                 };
                 
-                currentReceipts.unshift(newReceipt);
+                let currentReceipts = [newReceipt, ...receipts];
+                
+                // הפעלת סנכרון חכם גם בעת הוספה - מחבר שולמים ושריונים תואמים
+                const { newList } = enforceLinking(currentReceipts);
 
-                // לוגיקת סנכרון הפוך: הוספת משוריין ואסיפת 'שולמים' יתומים קיימים לאותו ספק
-                if (formData.status === "משוריין" && !formData.parentId) {
-                    currentReceipts = currentReceipts.map(r => {
-                        if (r.id !== newId && r.vendor === formData.vendor && r.status === "שולם" && !r.parentId) {
-                            return { ...r, parentId: newId };
-                        }
-                        return r;
-                    });
-                }
-
-                setReceipts(currentReceipts);
+                setReceipts(newList);
                 setFormData({ amount: '', vendor: '', category: categoriesList[0], quarter: QUARTERS[0], month: QUARTER_MONTHS[QUARTERS[0]][0], status: "שולם", parentId: null });
                 setIsAdding(false);
-                updateFirestore(budgets, currentReceipts);
+                updateFirestore(budgets, newList);
             };
 
             const openSubRowForm = (parent) => {
                 setFormData({
                     amount: '',
-                    vendor: parent.vendor,
+                    vendor: parent.vendor.trim(),
                     category: parent.category,
                     quarter: parent.quarter,
                     month: parent.month,
@@ -345,22 +353,23 @@
 
             const deleteReceipt = (id) => {
                 if(window.confirm("למחוק נתון זה? במידה וזה שריון, כל התשלומים המקושרים יימחקו גם כן.")) {
-                    // מוחק גם את השורה עצמה וגם ילדים (תשלומים שקושרו לשריון זה)
                     const updatedReceipts = receipts.filter(r => r.id !== id && r.parentId !== id);
-                    
-                    // רשות: שחרור תשלומים יתומים במקום מחיקתם (לפי הלוגיקה שבחרנו, אנחנו מוחקים קומפלט, אבל ניתן לשנות)
                     setReceipts(updatedReceipts);
                     updateFirestore(budgets, updatedReceipts);
                 }
             };
 
-            const startEditing = (receipt) => { setEditingId(receipt.id); setFormData({ ...receipt }); };
+            const startEditing = (receipt) => { setEditingId(receipt.id); setFormData({ ...receipt, vendor: receipt.vendor.trim() }); };
             
             const saveEdit = () => {
-                const updatedReceipts = receipts.map(r => r.id === editingId ? { ...formData, amount: Number(formData.amount) } : r);
-                setReceipts(updatedReceipts);
+                const updatedReceipts = receipts.map(r => r.id === editingId ? { ...formData, amount: Number(formData.amount), vendor: formData.vendor.trim() } : r);
+                
+                // סנכרון אוטומטי גם אחרי עריכה (במקרה ששם הספק תוקן לדוגמה)
+                const { newList } = enforceLinking(updatedReceipts);
+                
+                setReceipts(newList);
                 setEditingId(null);
-                updateFirestore(budgets, updatedReceipts);
+                updateFirestore(budgets, newList);
             };
 
             if (!isLoaded) {
